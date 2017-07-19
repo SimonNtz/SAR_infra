@@ -21,22 +21,19 @@ def push_req(specs, orderby=None):
     print req
     return(api.session.get(req).json())
 
-def push_req2(s_l, p_l, orderby=False):
-    
+def push_req2(s_l, p_l):
     url   = api.endpoint + "/api/service-offer?$filter="
-    p_req = ["resource:class='%s.SAFE'" % p.strip() for p in p_l]  
-    req  = url + (' and ').join(s_l) + ' and ' +  (' or ').join(p_req) 
-    
-    if orderby:
-	req = req + '&$' + oderby
-    print req
-    
+    p_req = ["resource:class='%s.SAFE'" % p for p in p_l]  
+    req  = url + (' and ').join(s_l) + ' and ' +  (' or ').join(p_req)
+    print req    
     return(api.session.get(req).json()) 
 
 def test_p(s):
     print(s)
 if __name__ == '__main__':
- 
+    #specs 	= {'connector':"'exoscale-gva-ch'",'resources':
+	#		{'disk':"'1702348213'", 'platform':"'S3'",'type':"'DATA'"}} 
+    
     specs 	= [ "resource:type='DATA'", "resource:platform='S3'"]
    # CHECK DATA LOCALISATION
 
@@ -48,8 +45,23 @@ if __name__ == '__main__':
 		'S1A_IW_GRDH_1SDV_20160729T182822_20160729T182847_012367_013456_E8BF', 
 		'S1A_IW_GRDH_1SDV_20160822T182823_20160822T182848_012717_013FFE_90AF', 
 		'S1A_IW_GRDH_1SDV_20160915T182824_20160915T182849_013067_014B77_1FCD']
-     
+  
+    prd_req = [[] for _ in range(len(prd_list))]
+      
+    for i,p in enumerate(prd_list):
+
+        temp = specs[:]
+        #print temp
+        temp.append("resource:class='%s.SAFE'" % p)
+	
+        prd_req[i].append(temp)
+        prd_req[i] = prd_req[i][0]
+        #print prd_req[i]
+    
+    #print prd_req 
+    #data_loc = map(lambda x:push_req(x)['count'], prd_req)
     data_loc = push_req2(specs, prd_list)['count']    
+    
     pp(data_loc)
    # pp(push_req(prd_req[0])['count'])
 

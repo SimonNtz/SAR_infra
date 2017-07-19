@@ -1,0 +1,27 @@
+<html>
+    <head>
+        <title>Handle POST requests with Flask</title>
+        <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div id="container">
+            <div class="title">
+                <h1>EOproc SLA</h1>
+            </div>
+            <div id="content">
+                <form method="post" action="{{ url_for('sla_ui') }}">
+                  <label for="prod_list">Please enter the product list:</label>
+                  <input type="text" name="prod_list" /><br />
+                  
+                  <label for="sla_offer">Please enter your offer:</label>
+                  <input type="text" name="sla_offer" /><br />
+		  
+                  <label for="sla_time">Please enter the maximum time allowed to deliver:</label>
+                  <input type="text" name="sla_time" /><br />
+		   <input type="submit" />
+                </form>
+            </div>
+        </div>
+    </body>
+</html>
+ 

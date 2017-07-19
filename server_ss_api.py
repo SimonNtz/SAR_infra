@@ -1,12 +1,13 @@
-#from flask import Flask
+from flask import Flask
 from flask import request
 from slipstream.api import Api
 from threading import Thread
 from pprint import pprint as pp
 import thread
 import Queue
+import so_access
 
-#app = Flask(__name__)
+app = Flask(__name__)
 api = Api()
 api.login('simon1992', '12mc0v2ee64o9')
 
@@ -65,26 +66,32 @@ def my_endpoint_handler():
     and the instance t-shirt size. After that, we look for the upper closest match
     in the service offers. Finally, we deploy the module configured with the findings.
     '''
-    queue = Queue.Queue()
+
+    # DATA LOCALIZATION
+    specs = [ "resource:type='DATA'", "resource:platform='S3'"] 
+       #so_access.push_req2(specs, request.data['prd_list'])
+    print request.data
+
+
+
     # DMM gives what are the data localization and the optimal instance's t-shirt size
     comp = {u'mapper':{u'cpu.nb': u'4', u'disk.GB': u'100', u'ram.GB': u'12'},
              u'reducer':{u'cpu.nb': u'4', u'disk.GB': u'100', u'ram.GB': u'12'}}
+    
 
-    question_service_offer("module/EO_Sentinel_1/procSAR/13158",['exoscale-ch-gva', 'ec2-eu-west-2'], comp, queue)
+
+  
     deploy_rqst("module/EO_Sentinel_1/procSAR/13158", queue)
-    #task = Thread(target=question_service_offer, args = ("module/EO_Sentinel_1/procSAR/13158",['exoscale-ch-gva', 'ec2-eu-west-2'], comp, queue))
-    #task.start()
-    #task.join()
-    #task = Thread(target=deploy_rqst, args = ("module/EO_Sentinel_1/procSAR/13158", queue))
-    #task.start()
-    #task.join()
+    
+   
     return "Thanks"
 
 if __name__== '__main__':
-    #app.run()
+    app.run(debug=True)
     my_endpoint_handler()
-    print "check"
+    #print "check"
 
+    print_test("lol")
 
     # For local context in threads
     #def handle_sub_view(req):

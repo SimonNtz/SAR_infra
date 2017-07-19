@@ -1,0 +1,19 @@
+<html>
+    <head>
+        <title>EOproc SLA</title>
+        <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div id="container">
+            <div class="title">
+                <h1>EOproc SLA</h1>
+            </div>
+            <div id="content">
+           <strong>Product list:</strong>{{prod_list}}<br>   
+           <strong>Time to deliver</strong>{{sla_time}}<br> 
+           <strong>Offer</strong><br>{{sla_offer}}
+           <strong></strong><br>{{data}}
+           </div>
+        </div>
+    </body>
+</html>

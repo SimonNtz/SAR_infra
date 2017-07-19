@@ -24,8 +24,7 @@ def ls_bucket(host, bucket):
      response 	=	 requests.get(host + '/' + bucket)
      tree     	=        ElementTree.fromstring(response.content)
      regex    	= re.compile('S1(.+?)SAFE')
-     host_name  = re.match(r"https://(.*)\.com" and r"https://(.*)\.io", 
-				host).group(0)[8:]
+     host_name  = re.match(r"https://(.*)", host).group(0)[8:]
      prd_list 	= []
      prd_dict  	= {}
 
@@ -76,5 +75,5 @@ def build_test(s):
      print s[1]
      return(s)
 if __name__ == '__main__':
-     d = ls_bucket("https://sos.exo.io", "eodata")
+     d = ls_bucket("https://s3-eu-west-1.amazonaws.com", "sixsq.eoproc")
      map(build_so, d.items())

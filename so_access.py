@@ -17,21 +17,34 @@ def push_req(specs, orderby=None):
     req   = url + (' and ').join(specs)
      	
     if orderby:
-	req = req + '&$' + oderby
+       	req = req + '&$oderby=&$orderby=price:unitCost'
     print req
     return(api.session.get(req).json())
 
-def push_req2(s_l, p_l, orderby=False):
+def push_req2(sl, pl,orderby=False):
     
     url   = api.endpoint + "/api/service-offer?$filter="
-    p_req = ["resource:class='%s.SAFE'" % p.strip() for p in p_l]  
-    req  = url + (' and ').join(s_l) + ' and ' +  (' or ').join(p_req) 
+    req   = url + (' and ').join(sl)
+    if pl: 
+    	p_req = ["resource:class='%s.SAFE'" % p.strip() for p in pl]  
+        req  =  req  + ' and ' +  (' or ').join(p_req) 
+    if orderby:
+	req = req + '&$orderby=price:unitCost' 
+    print req
+    return(api.session.get(req).json()) 
+
+def push_req3(cl,sl, orderby=True):
+
+    url   = api.endpoint + "/api/service-offer?$filter="
+    req = cl[0] + ' and ' + (' and ').join(sl)
+    for c in cl[1:]:
+        req   = req + (' or ') + c + ' and ' + (' and ').join(sl)
     
     if orderby:
-	req = req + '&$' + oderby
-    print req
-    
-    return(api.session.get(req).json()) 
+        req = req + '&$orderby=price:unitCost'
+    print url + req
+    return(api.session.get(url + req).json())
+
 
 def test_p(s):
     print(s)

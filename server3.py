@@ -6,7 +6,7 @@ from datetime import datetime
 from threading import Thread
 import so_access as sa
 import lib_access as la
-
+# -*- coding: utf-8 -*-
 app = Flask(__name__)
 api = Api()
 
@@ -94,19 +94,69 @@ def find_data_loc(prod_list):
     for c in cloud_set:
         if _all_products_on_cloud(c, rep_so, prod_list):
              cloud_legit.append("connector/href='%s'" % c)
+
     return(cloud_legit)
+
+
+def _schema_validation(jsonData):
+    """
+    Input data Schema:
+    - A JSON with top hierarchy 'SLA' and 'results' dicts:
+
+    jsonData = {'SLA':dict, 'result':dict}
+
+    dict('SLA')    = {'requirements':['time',offer'], 'order':['prod_list']}
+    dict('result') = {''}
+    """
+    if not "SLA" in jsonData:
+        raise ValueError("No 'SLA' in given data")
+    if not "result" in jsonData:
+        raise ValueError("No 'result' in given data")
+    for k,v in jsonData.items():
+        if not isinstance(v, dict):
+            raise ValueError("%s is not a dict in given data" % k)
+
+    SLA = jsonData['SLA']
+
+    if not "product_list" in SLA:
+        raise ValueError("Missing product list in given SLA data")
+    if not "requirements" in SLA:
+        raise ValueError("Missing requirements in given SLA data")
+
+    for k,v in jsonData['SLA'].items():
+        if not isinstance(v, list):
+            raise ValueError("%s is not a list in given data" % k)
+
+    return True
+
+
+
+def _request_validation(request):
+    if request.method == 'POST':
+        _schema_validation(request.get_json())
+    else:
+        raise ValueError("Not a POST request")
+
+
+
 
 @app.route('/SLA_CLI', methods=['POST'])
 def sla_cli():
-# DATA LOCALIZATION WHITHOUT SLA TERMS
 # Schema on Input
 # Validation
 
-    if (request.method == 'POST') and request.data:
-        prod_list  =  request.data.split(',')
-        print prod_list
+
+
+    try:
+        _request_validation(request)
+        data = request.get_json()
+        _sla = data['SLA']
+        pp(_sla)
+
+        prod_list  =  _sla['product_list']
         data_loc   = find_data_loc(prod_list)
         print "Data located in: %s" % data_loc
+
         msg    = ""
         status = ""
         if data_loc:
@@ -137,9 +187,11 @@ def sla_cli():
             msg = "Data not found in clouds! "
             status = 412
 
-    else:
-        msg = "Uncomplete request! "
-        status = 404
+
+    except ValueError as err:
+        msg = "Value error: {0} ".format(err)
+        status = "404"
+        print("Value error: {0} ".format(err))
 
     resp = Response(msg, status=status, mimetype='application/json')
     resp.headers['Link'] = 'http://sixsq.eoproc.com'

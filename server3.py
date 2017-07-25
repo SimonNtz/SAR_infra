@@ -64,6 +64,7 @@ def wait_product(deployment_id):
         print "Waiting state ready. Currently in state : %s Time elapsed: %s mins, seconds" % \
                             (state, divmod(delta.days * 86400 + delta.seconds, 60))
         time.sleep(45)
+        deployment_data = api.get_deployment(deployment_id)
         state = deployment_data[2]
         output_id = deployment_data[8].split('/')[-1]
 

@@ -4,7 +4,6 @@ from pprint import pprint as pp
 from slipstream.api import Api
 from datetime import datetime
 from threading import Thread
-import so_access as sa
 import lib_access as la
 # -*- coding: utf-8 -*-
 app = Flask(__name__)
@@ -85,11 +84,13 @@ def find_data_loc(prod_list):
     """
     # Not needed but speed the lookup up on the db
     specs_data         = ["resource:type='DATA'", "resource:platform='S3'"]
-    rep_so             = la.request_data(specs_data, prod_list)['serviceOffers']
+    #rep_so             = la.request_data(specs_data, prod_list)['serviceOffers']
     # push_req2 should be mocked in Unittesting
 
-    cloud_set      = list(set([c['connector']['href'] for c in rep_so]))
-    cloud_legit    = []
+    #cloud_set      = list(set([c['connector']['href'] for c in rep_so]))
+    #['cloud_a, cloud_b, cloud_c', 'cloud_d']
+    #cloud_legit    = []
+    cloud_legit    = ['cloud_a', 'cloud_b', 'cloud_c', 'cloud_d']
 
     for c in cloud_set:
         if _all_products_on_cloud(c, rep_so, prod_list):
@@ -167,7 +168,8 @@ def sla_cli():
                               "resource:ram>'15000'",
                               "resource:disk>'100'",
                               "resource:operatingSystem='linux'"]
-            # The cheapest the best
+
+            # DMM - The cheapest the best
             best_so = la.request_vm(specs_vm, data_loc)['serviceOffers'][0]
             so_id   = 'eo-cesnet-cz1' # best_obj['connector']
             so_conn = 'service-offer/deb7eb81-0881-4dff-9407-6230687f8a42' # best_obj['id']

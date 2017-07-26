@@ -139,15 +139,15 @@ def _request_validation(request):
         raise ValueError("Not a POST request")
 
 
-
+@app.route('/SLA_TEST', methods=['POST'])
+def sla_test():
+    print request.get_json()
+    return("check")
 
 @app.route('/SLA_CLI', methods=['POST'])
 def sla_cli():
 # Schema on Input
 # Validation
-
-
-
     try:
         _request_validation(request)
         data = request.get_json()

@@ -1,2 +1,1 @@
-#!/bin/bash
-curl -H "Content-Type: application/json" -X POST http://0.0.0.0:80/SLA_CLI -d $1 -i
+curl -H "Content-Type: application/jsonPOST -d '{"SLA":{"requirements":[], "product_list":["S1A_IW_GRDH_1SDV_20151226T182813_20151226T182838_009217_00D48F_5D5F"]}, "result":{}}' http://0.0.0.0:80/SLA_CLI

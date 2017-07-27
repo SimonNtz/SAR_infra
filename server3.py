@@ -1,10 +1,11 @@
 from flask import Flask, url_for, request, Response, render_template
-import os, time, json, boto, boto.s3.connection
+import os, time, json, boto, boto.s3.connection, operator
 from pprint import pprint as pp
 from slipstream.api import Api
 from datetime import datetime
 from threading import Thread
 import lib_access as la
+import numpy as np
 # -*- coding: utf-8 -*-
 app = Flask(__name__)
 api = Api()
@@ -28,6 +29,112 @@ def connect_s3():
         calling_format = boto.s3.connection.OrdinaryCallingFormat(),
         )
     return(conn)
+
+
+def get_BDB(case):
+
+    specs_ex = ["resource:vcpu='4'",
+                       "resource:ram>'15000'",
+                       "resource:disk>'100'",
+                       "resource:operatingSystem='linux'"]
+    specs_ex2 = ["resource:vcpu='4'",
+                       "resource:ram>'15000'",
+                       "resource:disk>'100'",
+                       "resource:operatingSystem='linux'"]
+    BDB = {
+
+     'case1': {'run_a': ['c1',
+                'service-offer/2d225047-9068-4555-81dd-d288562a57b1',
+                500],
+                     'run_b': ['c2',
+                'service-offer/a264258f-b6fe-4f3e-b9f4-3722b6a1c6c7',
+                 500],
+                 'run_c': ['c2',
+                 'service-offer/a264258f-b6fe-4f3e-b9f4-3722b6a1c6c7',
+                 600],
+                'run_d': ['c1',
+                'service-offer/a264258f-b6fe-4f3e-b9f4-3722b6a1c6c7',
+                650],
+                'run_d': ['c4',
+                'service-offer/a264258f-b6fe-4f3e-b9f4-3722b6a1c6c7',
+                650]},
+
+    'case2' : {},
+    }
+    return (BDB[case])
+
+def apply_time_filter(BDB, t):
+    return({k:v for k,v in BDB.iteritems() if v[2] <= t})
+
+def apply_cloud_filter(BDB, c):
+    return({k:v for k,v in BDB.iteritems() if v[0] in c})
+
+def apply_filter_BDB(BDB, c, t):
+    return(apply_time_filter(apply_cloud_filter(BDB,c),t))
+
+def get_price(id):
+    return(api.cimi_get(id).json['price:unitCost'])
+
+def get_vm_specs(id):
+    json = api.cimi_get(id).json
+    spec_keys = ['id',
+                 'resource:vcpu',
+                 'resource:ram',
+                 'resource:disk',
+                 'resource:typeDisk']
+    return(tuple(v for k,v in json.items() if k in spec_keys))
+
+def rank_per_price_BDB(BDB):
+    temp = [(v[1], get_price(v[1])) for k,v in BDB.items()]
+    temp.sort(key=lambda tuple: tuple[1])
+    return(temp)
+
+
+def rank_per_resource(list_id_res):
+    list_id_res.sort(key=lambda tuple: tuple[1])
+    return(temp[0])
+
+
+def check_vm_specs(BDB):
+
+    best_price = BDB[0][1]
+    vm_ids    = [k for k,v in BDB if v == best_price]
+
+    vm_specs   = map(get_vm_specs, vm_ids)
+
+    return(vm_specs)
+
+
+def compare_vm_specs(vm_specs):
+
+    dtype = 'i8, i8, |S64 , i8'
+    vm_specs = np.array(vm_specs, dtype=dtype)
+
+
+    return(vm_specs[0][2])
+
+
+def DMM(clouds, time):
+    """
+    Lookup for runs in benchmarking DB which :
+
+        - were deployed on the clouds where the data is located
+
+        - have an execution equal or smaller than the SLA
+
+        - The cheapest
+
+        - with the best specs
+
+    """
+    BDB = get_BDB('case1')
+
+    BDB_temp = apply_filter_BDB(BDB, clouds, 500 )
+
+    vms_set   = rank_per_price_BDB(BDB_temp)
+
+    my_vm = check_vm_specs(vms_set)
+
 
 
 def download_product(bucket_id, conn, output_id):
@@ -88,13 +195,15 @@ def find_data_loc(prod_list):
     # push_req2 should be mocked in Unittesting
 
     #cloud_set      = list(set([c['connector']['href'] for c in rep_so]))
+    cloud_set      = []
+
     #['cloud_a, cloud_b, cloud_c', 'cloud_d']
     #cloud_legit    = []
-    cloud_legit    = ['cloud_a', 'cloud_b', 'cloud_c', 'cloud_d']
+    cloud_legit    = ['c1', 'c2', 'c3', 'c4'] # FAKED
 
-    for c in cloud_set:
-        if _all_products_on_cloud(c, rep_so, prod_list):
-             cloud_legit.append("connector/href='%s'" % c)
+    # for c in cloud_set:
+    #     if _all_products_on_cloud(c, rep_so, prod_list):
+    #          cloud_legit.append("connector/href='%s'" % c)
 
     return(cloud_legit)
 
@@ -138,7 +247,10 @@ def _request_validation(request):
     else:
         raise ValueError("Not a POST request")
 
-
+@app.route('/SLA_TEST', methods=['POST'])
+def sla_test():
+    print request.get_json()
+    return "check"
 
 
 @app.route('/SLA_CLI', methods=['POST'])
@@ -164,13 +276,15 @@ def sla_cli():
             msg    = "SLA accepted! "
             status = "201"
             # Dummy instance size should be found from benchmarking
-            specs_vm = ["resource:vcpu='4'",
-                              "resource:ram>'15000'",
-                              "resource:disk>'100'",
-                              "resource:operatingSystem='linux'"]
+            # specs_vm = ["resource:vcpu='4'",
+            #                   "resource:ram>'15000'",
+            #                   "resource:disk>'100'",
+            #                   "resource:operatingSystem='linux'"]
 
             # DMM - The cheapest the best
-            best_so = la.request_vm(specs_vm, data_loc)['serviceOffers'][0]
+            # MOCK BDB and SLA time bound
+            best_so = DMM(data_loc, 500)
+            #best_so = la.request_vm(specs_vm, data_loc)['serviceOffers'][0]
             so_id   = 'eo-cesnet-cz1' # best_obj['connector']
             so_conn = 'service-offer/deb7eb81-0881-4dff-9407-6230687f8a42' # best_obj['id']
             print so_id
@@ -202,6 +316,6 @@ def sla_cli():
 if __name__ == '__main__':
     api.login('simon1992', '12mc0v2ee64o9')
     app.run(
-	host="0.0.0.0",
+        host="0.0.0.0",
         port=int("80")
 )

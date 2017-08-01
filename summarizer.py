@@ -5,9 +5,9 @@ from datetime import datetime
 from pprint import pprint as pp
 from collections import defaultdict
 
-server_host = "https://147.228.242.121"
+server_host = 'localhost'
 
-res = Elasticsearch([{'host': server_host, 'port': 9200}])
+res = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
 
 def _extract_time(m):

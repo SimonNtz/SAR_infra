@@ -18,7 +18,11 @@ def _time_at(msgs, str):
     msg = _find_msg(msgs, str)
     return(_extract_time(msg))
 
+def compute_deployment_time(data):
+    deployment_time = _time_at(data, 'finish deployment') - \
+                      _time_at(data, 'start deployment')
 
+    pp(deployment_time)
 def _find_msg(msgs, str):
     return(filter(lambda x:str in x, msgs))
 
@@ -49,7 +53,7 @@ def get_product_info(data):
 
 def extract_field(data, field):
 
-    return([h['_source'][field] for h in data])
+    return([v['_source'][field] for v in data.values()])
 
 
 
@@ -70,7 +74,7 @@ def extract_node_data(run):
 
     l = []
     for m in mapper:
-        l.append(extract_field(m, 'host'), extract_field(m, 'message'))
+        l.append((m['_source']['host'], m['_source']['message']))
 
     mappers = defaultdict(list)
 
@@ -83,13 +87,6 @@ def extract_node_data(run):
 
     #return(mappers, reducer)
 
-
-
-def compute_deployment_time(data):
-    deployment_time = _time_at(data, 'finish deployment') - \
-                      _time_at(data, 'start deployment')
-
-    pp(deployment_time)
 
 def query_run(duiid, cloud):
     query = {

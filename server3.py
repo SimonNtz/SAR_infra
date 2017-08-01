@@ -63,26 +63,32 @@ def get_BDB(case):
     }
     return (BDB[case])
 
+
 def apply_time_filter(BDB, t):
     return({k:v for k,v in BDB.iteritems() if v[2] <= t})
+
 
 def apply_cloud_filter(BDB, c):
     return({k:v for k,v in BDB.iteritems() if v[0] in c})
 
+
 def apply_filter_BDB(BDB, c, t):
     return(apply_time_filter(apply_cloud_filter(BDB,c),t))
 
+
 def get_price(id):
     return(api.cimi_get(id).json['price:unitCost'])
+
 
 def get_vm_specs(id):
     json = api.cimi_get(id).json
     spec_keys = ['id',
                  'resource:vcpu',
                  'resource:ram',
-                 'resource:disk',
-                 'resource:typeDisk']
+                 'resource:disk']
+                 #'resource:typeDisk'] Maybe SSD boost the process
     return(tuple(v for k,v in json.items() if k in spec_keys))
+
 
 def rank_per_price_BDB(BDB):
     temp = [(v[1], get_price(v[1])) for k,v in BDB.items()]
@@ -95,14 +101,10 @@ def rank_per_resource(list_id_res):
     return(temp[0])
 
 
-def check_vm_specs(BDB):
-
-    best_price = BDB[0][1]
-    vm_ids    = [k for k,v in BDB if v == best_price]
-
+def check_vm_specs(vm_ids):
+    print "CHECK SPECS"
     vm_specs   = map(get_vm_specs, vm_ids)
-
-    return(vm_specs)
+    return(compare_vm_specs(vm_specs))
 
 
 def compare_vm_specs(vm_specs):
@@ -112,6 +114,17 @@ def compare_vm_specs(vm_specs):
 
 
     return(vm_specs[0][2])
+
+
+def choose_vm(vm_set):
+    best_price = vm_set[0][1]
+    best_vms   = [k for k,v in vm_set if v == best_price]
+
+    if len(best_vms) > 1:
+        my_vm = check_vm_specs(best_vms)
+    else:
+        my_vm = best_vms[0]
+    return my_vm
 
 
 def DMM(clouds, time):
@@ -131,10 +144,11 @@ def DMM(clouds, time):
 
     BDB_temp = apply_filter_BDB(BDB, clouds, 500 )
 
-    vms_set   = rank_per_price_BDB(BDB_temp)
+    vm_set   = rank_per_price_BDB(BDB_temp)
 
-    my_vm = check_vm_specs(vms_set)
+    my_vm    = choose_vm(vm_set)
 
+    return(my_vm)
 
 
 def download_product(bucket_id, conn, output_id):
@@ -156,7 +170,25 @@ def download_product(bucket_id, conn, output_id):
 
     print "Product stored @ %s." % output_id
 
-def wait_product(deployment_id):
+
+def cancel_deployment(deployment_id):
+    api.terminate(deployment_id)
+    state = api.get_deployment(deployment_id)[2]
+    while state != 'cancelled':
+        print "Terminating deployment %s." % deployment_id
+        time.sleep(5)
+        api.terminate(deployment_id)
+
+
+def watch_execution_time(start_time):
+    time_format = '%Y-%m-%d %H:%M:%S.%f UTC'
+    delta = datetime.utcnow() - datetime.strptime(start_time,
+                                            time_format)
+    execution_time = divmod(delta.days * 86400 + delta.seconds, 60)
+    return(execution_time)
+
+
+def wait_product(deployment_id, time_limit):
     """
     :param   deployment_id: uuid of the deployment
     :type    deployment_id: str
@@ -166,20 +198,29 @@ def wait_product(deployment_id):
     output_id       =  ""
 
     while state != "ready" and  not output_id:
-        delta = datetime.utcnow() - datetime.strptime(deployment_data[3], '%Y-%m-%d %H:%M:%S.%f UTC')
-        print "Waiting state ready. Currently in state : %s Time elapsed: %s mins, seconds" % \
-                            (state, divmod(delta.days * 86400 + delta.seconds, 60))
+        deployment_data = api.get_deployment(deployment_id)
+        t = watch_execution_time(deployment_data[3])
+        print "Waiting state ready. Currently in state : \
+                 %s Time elapsed: %s mins, seconds" % (state, t)
+
+        if (t[0]* 60 + t[1]) >= time_limit:
+            cancel_deployment(deployment_id)
+            return("SLA time bound exceeded. Deployment is cancelled.")
+
         time.sleep(45)
         state = deployment_data[2]
         output_id = deployment_data[8].split('/')[-1]
 
     conn = connect_s3()
     download_product("eodata_output2", conn, output_id)
+
     return("Product %s delivered!" % outpud_id)
+
 
 def _all_products_on_cloud(c, rep_so, prod_list):
     products_cloud = ['x' for so in rep_so if so['connector']['href'] == c]
     return len(products_cloud) == len(prod_list)
+
 
 def find_data_loc(prod_list):
     """
@@ -240,12 +281,12 @@ def _schema_validation(jsonData):
     return True
 
 
-
 def _request_validation(request):
     if request.method == 'POST':
         _schema_validation(request.get_json())
     else:
         raise ValueError("Not a POST request")
+
 
 @app.route('/SLA_TEST', methods=['POST'])
 def sla_test():
@@ -257,9 +298,6 @@ def sla_test():
 def sla_cli():
 # Schema on Input
 # Validation
-
-
-
     try:
         _request_validation(request)
         data = request.get_json()
@@ -275,15 +313,11 @@ def sla_cli():
         if data_loc:
             msg    = "SLA accepted! "
             status = "201"
-            # Dummy instance size should be found from benchmarking
-            # specs_vm = ["resource:vcpu='4'",
-            #                   "resource:ram>'15000'",
-            #                   "resource:disk>'100'",
-            #                   "resource:operatingSystem='linux'"]
-
             # DMM - The cheapest the best
             # MOCK BDB and SLA time bound
-            best_so = DMM(data_loc, 500)
+            time = 500
+            best_so = DMM(data_loc, time)
+            print best_so
             #best_so = la.request_vm(specs_vm, data_loc)['serviceOffers'][0]
             so_id   = 'eo-cesnet-cz1' # best_obj['connector']
             so_conn = 'service-offer/deb7eb81-0881-4dff-9407-6230687f8a42' # best_obj['id']
@@ -292,11 +326,13 @@ def sla_cli():
 
             deploy_id = api.deploy('EO_Sentinel_1/procSAR',
                         cloud={'mapper': so_id, 'reducer':'eo-cesnet-cz1'},
-                        parameters={'mapper' : {'service-offer': so_conn, 'product-list':prod_list},
-                                    'reducer': {'service-offer': 'service-offer/5a97bbd7-6959-4259-9b2c-30fefdb08322'}},
+                        parameters={'mapper' : {'service-offer': \
+                                     so_conn, 'product-list':prod_list},
+                                    'reducer': {'service-offer': \
+                                    'service-offer/5a97bbd7-6959-4259-9b2c-30fefdb08322'}},
                         tags='EOproc', keep_running='never')
 
-            daemon_watcher = Thread(target = wait_product, args = (deploy_id,))
+            daemon_watcher = Thread(target = wait_product, args = (deploy_id, time))
             daemon_watcher.setDaemon(True)
             daemon_watcher.start()
         else:

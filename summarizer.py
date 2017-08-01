@@ -107,7 +107,7 @@ def query_run(duiid, cloud):
 
 def summarize_run(duiid, cloud):
     response = query_run(duiid, cloud)
-#   nodeData = extract_node_data(response['hits'])
+    nodeData = extract_node_data(response['hits'])
  #       time_records = compute_time_records(nodeData)
  #       time     = compute_time_records(nodeData)
  #       product  = get_product_info(nodeData[0])

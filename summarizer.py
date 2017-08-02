@@ -12,6 +12,10 @@ res = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
 def _extract_time(m):
     temp = m[0].split(' - ')[1].strip()
+    if len(temp.split('T')) > 1:
+        print temp
+        pass
+        temp = temp.split('T')[1].split('.')[0]
     return(datetime.strptime(temp, "%H:%M:%S"))
 
 def _time_at(msgs, str):
@@ -22,7 +26,17 @@ def compute_deployment_time(data):
     deployment_time = _time_at(data, 'finish deployment') - \
                       _time_at(data, 'start deployment')
 
-    pp(deployment_time)
+    processing_time = _time_at(data, 'finish processing') - \
+                      _time_at(data, 'start processing')
+
+    pp([deployment_time, processing_time])
+
+def compute_download_time(data):
+    download_time = _time_at(data, 'download') - \
+                    _time_at(data, 'start download')
+    return download_time
+
+
 def _find_msg(msgs, str):
     return(filter(lambda x:str in x, msgs))
 
@@ -85,7 +99,7 @@ def extract_node_data(run):
     pp(mappers[mappers.keys()[0]])
     compute_deployment_time(mappers[mappers.keys()[0]])
 
-    #return(mappers, reducer)
+    return(mappers, reducer)
 
 
 def query_run(duiid, cloud):

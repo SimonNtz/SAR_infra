@@ -74,16 +74,16 @@ def query_time_per_cloud(cloud, time):
 
     cloud_query = []
     for c in cloud:
-      cloud_query.append = {"term":{"cloud":c}}
+      cloud_query.append = {"term":{"cloud": }}
+
 
     query = {
               "query": {
                   "bool": {
                           "must": [
+                              {"match":{"fields.cloud" : "eo-cesnet-cz1"}},
                               {"match_phrase":{"message": "finish processing"}}
-                          ],
-                          "should":
-                              cloud_query
+                          ]
                         }
                     }
               }

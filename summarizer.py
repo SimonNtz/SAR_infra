@@ -13,8 +13,6 @@ res = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 def _extract_time(m):
     temp = m[0].split(' - ')[1].strip()
     if len(temp.split('T')) > 1:
-        print temp
-        pass
         temp = temp.split('T')[1].split('.')[0]
     return(datetime.strptime(temp, "%H:%M:%S"))
 

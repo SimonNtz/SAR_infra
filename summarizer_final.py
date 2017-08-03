@@ -52,18 +52,18 @@ def _intra_node_time(data, duiid):
                   install_time.seconds,
                   deployment_time.seconds,
                   processing_time.seconds]
-    return([sum(intra_time[1:3])] + intra_time)
-   # return({'provisioning':provisioning_time.seconds,
-   #         'install': install_time.seconds,
-   #         'deployment': deployment_time.seconds,
-   #         'processing': processing_time.seconds})
+    #return([sum(intra_time[1:3])] + intra_time)
+   return({'provisioning':provisioning_time.seconds,
+           'install': install_time.seconds,
+           'deployment': deployment_time.seconds,
+           'processing': processing_time.seconds})
 
 
 def compute_time_records(mappers, reducer, duiid):
     mappers_time = map(lambda x:_intra_node_time(x, duiid), mappers.values())
     for i,v in enumerate(mappers.values()):
-        mappers_time[i].append(_download_time(v))
-   #mappers_time[i]['download'] = _download_time(v)
+        #mappers_time[i].append(_download_time(v))
+        mappers_time[i]['download'] = _download_time(v)
     return({'mappers':mappers_time,'total': _total_time(reducer, duiid)})
 
 def _download_time(data):
@@ -138,40 +138,47 @@ def query_run(duiid, cloud):
 
     return res.search(index='_all', body=query, size=300)
 
-    run = {'cloud': cloud,
-                   'time_records': {'mapper' :
-                                      { 'provisioning' : '',
-                                        'install': '',
-                                        'deployment': '',
-                                        'processing':' ',
-                                        'download': ''},
-                                    'reducer' :
-                                        { 'provisioning' : '',
-                                          'install': '',
-                                          'deployment': '',
-                                          'processing':' ',
-                                          'upload': ''},
-                                    'total':''}
-              'products'    : [[]],
-              'components'   : {'mapper':serviceOffers,'reducer':serviceOffers}
+
+
+def create_index(duiid, cloud, time_records, products, serviceOffers):
+    # run = {'cloud': cloud,
+    #       'time_records': time_records,
+    #       'products'    : products,
+    #       'components'   : [serviceOffers[0], serviceOffers[1]]
+    #    }
+    run = {
+           'cannedOffer': 1,
+           'components': {'mapper': [serviceOffers[0],'foo-instance-type'],
+                         'reducer': [serviceOffers[1],'foo-instance-type']},
+           'products': products ,
+           'price':'',
+           'timestamp':datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+           'execution_time': time_records['total'],
+           'time_records': {
+                     'mapper': { time_records['mappers']
+                              #  'deployment': '',
+                              #   'download': '',
+                              #   'install': '',
+                              #   'processing': '',
+                              #   'provisioning': ''},
+                     'reducer': { time_records['reducer']
+                              #  'deployment': '',
+                              #  'install': '',
+                              #  'processing': '',
+                              #  'provisioning': '',
+                              #  'upload': ''},
+           'total': time_records['total']}
            }
 
 
 
-def create_index(duiid, cloud, time_records, products, serviceOffers):
-    run = {'cloud': cloud,
-          'time_records': time_records,
-          'products'    : products,
-          'components'   : [serviceOffers[0], serviceOffers[1]]
-       }
-
     print time_records
-    index = res.index(index='sar_app',
-                     doc_type='run_log',
-                     id=8,#duiid,
-                     body=run)
-    print index['created']
-    pp(run)
+    rep = res.index(index='sar',
+                      doc_type='foo3',
+                      id=cloud, #duiid,
+                      body=run)
+    print rep['created']
+    pp(res.get(index='sar', id=9))
 
 def summarize_run(duiid, cloud):
     response = query_run(duiid, cloud)

@@ -16,6 +16,8 @@ res = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 def _extract_time(m):
     return(datetime.strptime(m, "%Y-%m-%d %H:%M:%S"))
 
+def timestamp():
+    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 def _time_at(msgs, str):
     msg = _find_msg(msgs, str)
     if len(msg.split(' - ')) > 1:
@@ -48,23 +50,22 @@ def _intra_node_time(data, duiid):
     processing_time = _time_at(data, 'finish processing') - \
                       _time_at(data, 'start processing')
 
-    intra_time = [provisioning_time.seconds,
-                  install_time.seconds,
-                  deployment_time.seconds,
-                  processing_time.seconds]
-    #return([sum(intra_time[1:3])] + intra_time)
-   return({'provisioning':provisioning_time.seconds,
+    return({'provisioning':provisioning_time.seconds,
            'install': install_time.seconds,
            'deployment': deployment_time.seconds,
-           'processing': processing_time.seconds})
+           'processing': processing_time.seconds,
+           'intra-total': (install_time.seconds + deployment_time.seconds)})
 
 
 def compute_time_records(mappers, reducer, duiid):
     mappers_time = map(lambda x:_intra_node_time(x, duiid), mappers.values())
+    reducer_time = mappers_time[0]/10
     for i,v in enumerate(mappers.values()):
         #mappers_time[i].append(_download_time(v))
         mappers_time[i]['download'] = _download_time(v)
-    return({'mappers':mappers_time,'total': _total_time(reducer, duiid)})
+    reducer_time['upload'] = 10
+    return({'mappers':mappers_time, 'reducer':reducer_time, 'total': _total_time(reducer, duiid)})
+
 
 def _download_time(data):
     download_time = _time_at(data, 'finish downloading') - \
@@ -90,9 +91,34 @@ def get_product_info(data):
 
     return(map(lambda x:x.strip(), info[3:5]))
 
+def get instance_type(id):
+      _service_offer(0)['price:unitCost']
+
+def _service_offer(id):
+    return api.cimi_get(id).json
+
+
+def get_price(ids, time_records):
+      mapper_multiplicity = len(time_records['mapper'])
+      time = time_records['total']
+
+      mapper_unit_price = _service_offer(0)['price:unitCost']
+      reducer_unit_price = _service_offer(1)['price:unitCost']
+
+      if _service_offer(0)['billingPeriodCode'] == 'HUR' :
+        time = ceil(time / 3600)
+      else
+        time = time / 3600
+
+      cost = time *
+      ((mapper_unit_price * mapper_multiplicity) + reducer_unit_price)
+
+      return(cost, timestamp())
+
 
 def extract_field(data, field):
     return([v['_source'][field] for v in data.values()])
+
 
 def _filter_field(hits, field, value):
     if hits['total'] > 0:
@@ -103,11 +129,13 @@ def _filter_field(hits, field, value):
          result={}
     return result
 
+
 def div_node(run):
     mapper  = _filter_field(run, "nodename", "mapper")
     reducer = _filter_field(run, "nodename", "reducer")
 
     return(mapper, reducer)
+
 
 def extract_node_data(mapper, reducer, duiid):
 
@@ -139,36 +167,39 @@ def query_run(duiid, cloud):
     return res.search(index='_all', body=query, size=300)
 
 
-
-def create_index(duiid, cloud, time_records, products, serviceOffers):
+def create_index(cloud, offer, time_records, products, serviceOffers):
     # run = {'cloud': cloud,
     #       'time_records': time_records,
     #       'products'    : products,
     #       'components'   : [serviceOffers[0], serviceOffers[1]]
     #    }
+    pp(time_records)
+    mapper_multiplicity = len(time_records['mappers'])
+
     run = {
-           'cannedOffer': 1,
-           'components': {'mapper': [serviceOffers[0],'foo-instance-type'],
-                         'reducer': [serviceOffers[1],'foo-instance-type']},
-           'products': products ,
-           'price':'',
-           'timestamp':datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-           'execution_time': time_records['total'],
-           'time_records': {
-                     'mapper': { time_records['mappers']
-                              #  'deployment': '',
-                              #   'download': '',
-                              #   'install': '',
-                              #   'processing': '',
-                              #   'provisioning': ''},
-                     'reducer': { time_records['reducer']
-                              #  'deployment': '',
-                              #  'install': '',
-                              #  'processing': '',
-                              #  'provisioning': '',
-                              #  'upload': ''},
-           'total': time_records['total']}
-           }
+           offer :{
+             'components': {'mapper': [ serviceOffers[0], )
+                           'reducer': [ serviceOffers[1], )},
+             'products': products ,
+             'price': get_price(serviceOffers, time_records),
+             'timestamp': timestamp,
+             'execution_time': time_records['total'],
+             'time_records': {
+                       'mapper': { time_records['mappers']},
+                                #  'deployment': '',
+                                #   'download': '',
+                                #   'install': '',
+                                #   'processing': '',
+                                #   'provisioning': ''},
+                       'reducer': { time_records['reducer']}
+                                #  'deployment': '',
+                                #  'install': '',
+                                #  'processing': '',
+                                #  'provisioning': '',
+                                #  'upload': ''},
+             'total': time_records['total']}
+             }
+          }
 
 
 
@@ -180,7 +211,7 @@ def create_index(duiid, cloud, time_records, products, serviceOffers):
     print rep['created']
     pp(res.get(index='sar', id=9))
 
-def summarize_run(duiid, cloud):
+def summarize_run(duiid, cloud, offer):
     response = query_run(duiid, cloud)
     [mappers, reducer] = div_node(response['hits'])
     [mappersData, reducerData] = extract_node_data(mappers, reducer, duiid)
@@ -189,14 +220,13 @@ def summarize_run(duiid, cloud):
     products = map(lambda x:get_product_info(x), mappersData.values())
     serviceOffers = _get_service_offer(mappers, reducer)
 
-    rep = create_index(duiid, cloud, time_records, products, serviceOffers)
+    rep = create_index( cloud, offer, time_records, products, serviceOffers)
     return rep
 
 if __name__ ==  '__main__' :
     cloud = "eo-cesnet-cz1"
     duiid = "3d371680-86d2-49fc-b3d0-2fd5289cb1af"
-    response = query_run(duiid, cloud)
-    run = summarize_run(duiid, cloud)
+    summarize_run(duiid, cloud, offer)
 
 
  # TODO: define complete run with raise error !

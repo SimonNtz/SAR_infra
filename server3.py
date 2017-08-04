@@ -5,6 +5,8 @@ from slipstream.api import Api
 from datetime import datetime
 from threading import Thread
 import lib_access as la
+import no_sla_mode as nsm
+import summarizer_final as sumarizer
 import numpy as np
 # -*- coding: utf-8 -*-
 app = Flask(__name__)
@@ -213,6 +215,7 @@ def wait_product(deployment_id, time_limit):
 
     conn = connect_s3()
     download_product("eodata_output2", conn, output_id)
+    summarizer.
 
     return("Product %s delivered!" % outpud_id)
 
@@ -256,7 +259,7 @@ def _schema_validation(jsonData):
 
     jsonData = {'SLA':dict, 'result':dict}
 
-    dict('SLA')    = {'requirements':['time',offer'], 'order':['prod_list']}
+    dict('SLA')    = {'requirements':['time','price', 'resolution'], 'order':['prod_list']}
     dict('result') = {''}
     """
     if not "SLA" in jsonData:
@@ -280,6 +283,25 @@ def _schema_validation(jsonData):
 
     return True
 
+def check_BDB(clouds):
+    index='/sar'
+    type='/offer-cloud'
+    host = 'http://localhost:9200'
+    req_index = request.get(host + index)
+
+    deploy_id = []
+    for c in clouds:
+        req_id    = request.get(host + index + type + id)
+
+        if req_index != '<Response [200]>':
+            deploy_id = (c, nsm.create_BDB(host, c, type index))
+        elif req_id != '<Response [200]>':
+            deploy_id = (c, nsm.create_BDB(host, c, type))
+
+        watch_execution_time(deploy_id, 9999)
+        print c + "benchmark done."
+
+    return "benchmark db created"
 
 def _request_validation(request):
     if request.method == 'POST':
@@ -307,14 +329,15 @@ def sla_cli():
         prod_list  =  _sla['product_list']
         data_loc   = find_data_loc(prod_list)
         print "Data located in: %s" % data_loc
+        check_BDB(clouds)
+
 
         msg    = ""
         status = ""
+
         if data_loc:
             msg    = "SLA accepted! "
             status = "201"
-            # DMM - The cheapest the best
-            # MOCK BDB and SLA time bound
             time = 500
             best_so = DMM(data_loc, time)
             print best_so
@@ -336,7 +359,7 @@ def sla_cli():
             daemon_watcher.setDaemon(True)
             daemon_watcher.start()
         else:
-            msg = "Data not found in clouds! "
+            msg = "Data not found in clouds!"
             status = 412
 
 

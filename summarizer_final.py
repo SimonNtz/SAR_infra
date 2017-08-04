@@ -1,3 +1,4 @@
+from __future__ import division
 from elasticsearch import Elasticsearch
 import requests
 import sys
@@ -5,6 +6,7 @@ from datetime import datetime
 from pprint import pprint as pp
 from collections import defaultdict
 from slipstream.api import Api
+import math
 
 api = Api()
 api.login('simon1992', '12mc0v2ee64o9')
@@ -16,8 +18,11 @@ res = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 def _extract_time(m):
     return(datetime.strptime(m, "%Y-%m-%d %H:%M:%S"))
 
+
 def timestamp():
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+
 def _time_at(msgs, str):
     msg = _find_msg(msgs, str)
     if len(msg.split(' - ')) > 1:
@@ -32,6 +37,7 @@ def _total_time(reducer, duiid):
     total_time = _time_at(reducer, "start upload") - start
 
     return total_time.seconds
+
 
 def _start_time(duiid):
     temp =  api.get_deployment(duiid)[3][0:19]
@@ -59,12 +65,13 @@ def _intra_node_time(data, duiid):
 
 def compute_time_records(mappers, reducer, duiid):
     mappers_time = map(lambda x:_intra_node_time(x, duiid), mappers.values())
-    reducer_time = mappers_time[0]/10
+    reducer_time = {k:v/10 for k,v in mappers_time[0].items()}
     for i,v in enumerate(mappers.values()):
-        #mappers_time[i].append(_download_time(v))
         mappers_time[i]['download'] = _download_time(v)
     reducer_time['upload'] = 10
-    return({'mappers':mappers_time, 'reducer':reducer_time, 'total': _total_time(reducer, duiid)})
+    return({'mappers':mappers_time,
+            'reducer':reducer_time,
+            'total': _total_time(reducer, duiid)})
 
 
 def _download_time(data):
@@ -94,8 +101,15 @@ def get_product_info(data):
 def get instance_type(id):
       _service_offer(0)['price:unitCost']
 
+#TODODOO
 def _service_offer(id):
     return api.cimi_get(id).json
+
+
+def get_specs(id):
+     js = api.cimi_get(id).json
+
+     return [js['resource:vcpu'], js['resource:ram'], js['resource:disk']]
 
 
 def get_price(ids, time_records):
@@ -168,42 +182,22 @@ def query_run(duiid, cloud):
 
 
 def create_index(cloud, offer, time_records, products, serviceOffers):
-    # run = {'cloud': cloud,
-    #       'time_records': time_records,
-    #       'products'    : products,
-    #       'components'   : [serviceOffers[0], serviceOffers[1]]
-    #    }
-    pp(time_records)
-    mapper_multiplicity = len(time_records['mappers'])
 
     run = {
            offer :{
-             'components': {'mapper': [ serviceOffers[0], )
-                           'reducer': [ serviceOffers[1], )},
+             'components': {'mapper': get_specs(serviceOffers[0]),
+                           'reducer': get_specs(serviceOffers[0])},
              'products': products ,
-             'price': get_price(serviceOffers, time_records),
+             'price': '%.5f' % (get_price(serviceOffers, time_records)),
              'timestamp': timestamp,
              'execution_time': time_records['total'],
              'time_records': {
                        'mapper': { time_records['mappers']},
-                                #  'deployment': '',
-                                #   'download': '',
-                                #   'install': '',
-                                #   'processing': '',
-                                #   'provisioning': ''},
                        'reducer': { time_records['reducer']}
-                                #  'deployment': '',
-                                #  'install': '',
-                                #  'processing': '',
-                                #  'provisioning': '',
-                                #  'upload': ''},
-             'total': time_records['total']}
+                       'total': time_records['total']}
              }
           }
 
-
-
-    print time_records
     rep = res.index(index='sar',
                       doc_type='foo3',
                       id=cloud, #duiid,

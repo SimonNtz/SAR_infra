@@ -11,7 +11,8 @@ import numpy as np
 # -*- coding: utf-8 -*-
 app = Flask(__name__)
 api = Api()
-
+elastic_host = 'http://localhost:9200'
+doc_type = '/foo3/'
 
 @app.route('/')
 def form():
@@ -190,7 +191,7 @@ def watch_execution_time(start_time):
     return(execution_time)
 
 
-def wait_product(deployment_id, time_limit):
+def wait_product(deployment_id, cloud, time_limit):
     """
     :param   deployment_id: uuid of the deployment
     :type    deployment_id: str
@@ -215,7 +216,7 @@ def wait_product(deployment_id, time_limit):
 
     conn = connect_s3()
     download_product("eodata_output2", conn, output_id)
-    summarizer.
+    summarizer.summarize_run(deployment_id, cloud)
 
     return("Product %s delivered!" % outpud_id)
 
@@ -283,32 +284,60 @@ def _schema_validation(jsonData):
 
     return True
 
-def check_BDB(clouds):
-    index='/sar'
-    type='/offer-cloud'
-    host = 'http://localhost:9200'
-    req_index = request.get(host + index)
+def create_BDB(clouds):
+    index='/sar/'
+    type='/offer-cloud/'
+
+    req_index = request.get(elastic_host + index)
 
     deploy_id = []
     for c in clouds:
-        req_id    = request.get(host + index + type + id)
-
-        if req_index != '<Response [200]>':
-            deploy_id = (c, nsm.create_BDB(host, c, type index))
-        elif req_id != '<Response [200]>':
-            deploy_id = (c, nsm.create_BDB(host, c, type))
+        req_id    = request.get(elastic_host + index + type + id)
+        if not req_index:
+            deploy_id = (c, nsm.create_BDB(elastic_host, c, type index))
+        elif not req_id:
+            deploy_id = (c, nsm.create_BDB(elastic_host, c, type))
 
         watch_execution_time(deploy_id, 9999)
         print c + "benchmark done."
 
-    return "benchmark db created"
+    return True
+
+def check_BDB_cloud(clouds):
+    valid_cloud = []
+    for c in clouds:
+        rep = get_elastic(elastic_host + doc_type + '/%s/' % c)
+        if rep.json()['found']:
+            valid_cloud.append(c)
+
+    if not valid_cloud:
+        raise ValueError("Benchmark DB has no logs for %s \
+                        go use POST on `SLA_INIT` to initialize." % clouds)
+    return valid_cloud
+
+
+def get_elastic(index=None):
+    return request.get(elastic_host + index)
+
+def _check_BDB_state():
+    if not get_elastic():
+        raise ValueError("Benchmark DB down!")
+    return True
+
+def check_BDB_index(index):
+    _check_BDB_state()
+    rep_index = get_elastic(index)
+    if (not rep_index) or (len(rep_index.json()) < 1):
+        raise ValueError("Empty Benchmark DB please use POST on `SLA_INIT` \
+                                        to initialize the system")
+    return True
 
 def _request_validation(request):
     if request.method == 'POST':
         _schema_validation(request.get_json())
     else:
         raise ValueError("Not a POST request")
-
+    return True
 
 @app.route('/SLA_TEST', methods=['POST'])
 def sla_test():
@@ -316,11 +345,29 @@ def sla_test():
     return "check"
 
 
+@app.route('/SLA_INIT', methods=['POST'])
+def sla_init():
+   cloud = request.data
+   try:
+       _check_DB_state()
+       create_BDB
+       msg = "Cloud %s currently benchmarked."
+       status = "201"
+   except ValueError as err:
+       msg = "Value error: {0} ".format(err)
+       status = "404"
+       print("Value error: {0} ".format(err))
+   resp = Response(msg, status=status, mimetype='application/json')
+   resp.headers['Link'] = 'http://sixsq.eoproc.com'
+   return resp
+
+
 @app.route('/SLA_CLI', methods=['POST'])
 def sla_cli():
-# Schema on Input
-# Validation
+
     try:
+        _check_BDB_index('sar')
+
         _request_validation(request)
         data = request.get_json()
         _sla = data['SLA']
@@ -329,12 +376,11 @@ def sla_cli():
         prod_list  =  _sla['product_list']
         data_loc   = find_data_loc(prod_list)
         print "Data located in: %s" % data_loc
-        check_BDB(clouds)
 
+        data_loc   = _check_BDB_cloud(data_loc)
 
         msg    = ""
         status = ""
-
         if data_loc:
             msg    = "SLA accepted! "
             status = "201"
@@ -355,7 +401,7 @@ def sla_cli():
                                     'service-offer/5a97bbd7-6959-4259-9b2c-30fefdb08322'}},
                         tags='EOproc', keep_running='never')
 
-            daemon_watcher = Thread(target = wait_product, args = (deploy_id, time))
+            daemon_watcher = Thread(target = wait_product, args = (deploy_id, so_id, time))
             daemon_watcher.setDaemon(True)
             daemon_watcher.start()
         else:

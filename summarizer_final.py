@@ -98,7 +98,7 @@ def get_product_info(data):
 
     return(map(lambda x:x.strip(), info[3:5]))
 
-def get instance_type(id):
+def get_instance_type(id):
       _service_offer(0)['price:unitCost']
 
 #TODODOO
@@ -113,21 +113,19 @@ def get_specs(id):
 
 
 def get_price(ids, time_records):
-      mapper_multiplicity = len(time_records['mapper'])
-      time = time_records['total']
+    mapper_multiplicity = len(time_records['mappers'])
+    time = time_records['total']
+    mapper_unit_price = float(api.cimi_get(ids[0]).json['price:unitCost'])
+    reducer_unit_price = float(api.cimi_get(ids[1]).json['price:unitCost'])
 
-      mapper_unit_price = _service_offer(0)['price:unitCost']
-      reducer_unit_price = _service_offer(1)['price:unitCost']
+    if api.cimi_get(ids[0]).json['price:billingPeriodCode'] == 'HUR' :
+      time = math.ceil(time / 3600)
+    else:
+      time = time/ 3600
+    print time
+    cost = time * ((mapper_unit_price * mapper_multiplicity) + reducer_unit_price)
 
-      if _service_offer(0)['billingPeriodCode'] == 'HUR' :
-        time = ceil(time / 3600)
-      else
-        time = time / 3600
-
-      cost = time *
-      ((mapper_unit_price * mapper_multiplicity) + reducer_unit_price)
-
-      return(cost, timestamp())
+    return(cost)
 
 
 def extract_field(data, field):

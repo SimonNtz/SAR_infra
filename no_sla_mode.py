@@ -5,7 +5,7 @@ import sys
 from slipstream.api import Api
 import lib_access as la
 api = Api()
-api.login('simon1992', '12mc0v2ee64o9')
+#api.login('simon1992', '12mc0v2ee64o9')
 
 
 server_host = 'localhost'
@@ -35,12 +35,9 @@ def deploy_benchmarking(cloud):
                                 min_vm}},
                     tags='EOproc', keep_running='never')
 
- return(deploy_id)
+  return(deploy_id)
 
-def create_BDB(  host, id, type, index=None):
-  if index:
-      res.indices.create('host' + index, ignore=400)
-  deploy_benchmarking(id)
+
 
 if __name__ == '__main__':
 

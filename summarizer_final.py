@@ -33,7 +33,7 @@ def _time_at(msgs, str):
 
 
 def _total_time(reducer, duiid):
-    start = _extract_time(api.get_deployment(duiid)[3][0:19])
+    start = _start_time(duiid)
     total_time = _time_at(reducer, "start upload") - start
 
     return total_time.seconds
@@ -64,11 +64,13 @@ def _intra_node_time(data, duiid):
 
 
 def compute_time_records(mappers, reducer, duiid):
-    mappers_time = map(lambda x:_intra_node_time(x, duiid), mappers.values())
+    mappers_time = map(lambda x:_intra_node_time(x, duiid),
+                                            mappers.values())
     reducer_time = {k:v/10 for k,v in mappers_time[0].items()}
     for i,v in enumerate(mappers.values()):
         mappers_time[i]['download'] = _download_time(v)
     reducer_time['upload'] = 10
+
     return({'mappers':mappers_time,
             'reducer':reducer_time,
             'total': _total_time(reducer, duiid)})
@@ -101,7 +103,6 @@ def get_product_info(data):
 def get_instance_type(id):
       _service_offer(0)['price:unitCost']
 
-#TODODOO
 def _service_offer(id):
     return api.cimi_get(id).json
 
@@ -190,8 +191,8 @@ def create_index(cloud, offer, time_records, products, serviceOffers):
              'timestamp': timestamp,
              'execution_time': time_records['total'],
              'time_records': {
-                       'mapper': { time_records['mappers']},
-                       'reducer': { time_records['reducer']}
+                       'mapper': time_records['mappers'],
+                       'reducer': time_records['reducer'],
                        'total': time_records['total']}
              }
           }
@@ -216,8 +217,9 @@ def summarize_run(duiid, cloud, offer):
     return rep
 
 if __name__ ==  '__main__' :
-    cloud = "eo-cesnet-cz1"
+    cloud = "ec2-eu-west"
     duiid = "3d371680-86d2-49fc-b3d0-2fd5289cb1af"
+    offer = "CannedOffer_1"
     summarize_run(duiid, cloud, offer)
 
 

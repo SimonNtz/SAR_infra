@@ -10,7 +10,7 @@ url   = api.endpoint + "/api/service-offer?$filter="
 
 
 def _check_str_list(data):
-	if isinstance(data, str):
+	if isinstance(data, unicode) or isinstance(data, str):
 		data = [data]
 	return data
 
@@ -19,7 +19,7 @@ def _join_attributes(attr, operator):
 	return(' '+ operator +' ').join(attr)
 
 def _format_data_resource(data):
-	data = _check_str_list(data)
+	#data = _check_str_list(data)
 	return(["resource:class='%s.SAFE'" % prod.strip() for prod in data])
 
 
@@ -35,7 +35,6 @@ def request_data(specs, data):
 	data_resource   = _format_data_resource(data)
 
 	resources		= ""
-
 	for p in data_resource:
 		temp = _join_attributes([p, specs_resource], 'and')
 		resources = _join_attributes([temp, resources], 'or')
@@ -48,8 +47,7 @@ def request_vm(specs, clouds, orderby=True):
 
 	specs_resource = _join_attributes(specs, 'and')
 	resources   = ""
-	clouds      = _check_str_list(clouds)
-	print clouds
+	#clouds      = _check_str_list(clouds)
 	for c in clouds:
 		temp = _join_attributes([c, specs_resource], 'and')
 		resources = _join_attributes([temp, resources], 'or')

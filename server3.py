@@ -1,5 +1,6 @@
 from flask import Flask, url_for, request, Response, render_template
 import os, time, json, boto, boto.s3.connection, operator
+import requests
 from pprint import pprint as pp
 from slipstream.api import Api
 from datetime import datetime
@@ -33,6 +34,13 @@ def connect_s3():
         )
     return(conn)
 
+def _format_specs(specs):
+    for k,v in specs.items():
+        specs[k][0] = ("resource:vcpu='%d'" % v[0])
+        specs[k][1] = ("resource:ram>'%d'" % v[1])
+        specs[k][2] = ("resource:disk>'%d'" % v[2])
+
+    return specs
 
 def get_BDB(case):
 
@@ -222,34 +230,38 @@ def wait_product(deployment_id, cloud, time_limit):
 
 
 def _all_products_on_cloud(c, rep_so, prod_list):
-    products_cloud = ['x' for so in rep_so if so['connector']['href'] == c]
+    print c
+    print prod_list
+    products_cloud = ['xXX' for so in rep_so if so['connector']['href'] == c]
+
     return len(products_cloud) == len(prod_list)
 
+def _check_str_list(data):
+	if isinstance(data, unicode) or isinstance(data, str):
+		data = [data]
+	return data
 
 def find_data_loc(prod_list):
     """
-    :param   cloud_set: Input product list
-    :type    cloud_set: list
+    :param   prod_list: Input product list
+    :type    prod_list: list
 
-    :param   cloud_set: response fron service catalog for data localization
-    :type    cloud_set: dictionnary
+    :param   cloud_legit: Data localization found on service catalog
+    :type    cloud_legit: dictionnary
     """
-    # Not needed but speed the lookup up on the db
+    prod_list = _check_str_list(prod_list)
     specs_data         = ["resource:type='DATA'", "resource:platform='S3'"]
-    #rep_so             = la.request_data(specs_data, prod_list)['serviceOffers']
-    # push_req2 should be mocked in Unittesting
-
-    #cloud_set      = list(set([c['connector']['href'] for c in rep_so]))
-    cloud_set      = []
-
+    rep_so             = la.request_data(specs_data, prod_list)['serviceOffers']
+    cloud_set      = list(set([c['connector']['href'] for c in rep_so]))
+    #cloud_set      = []
     #['cloud_a, cloud_b, cloud_c', 'cloud_d']
-    #cloud_legit    = []
-    cloud_legit    = ['c1', 'c2', 'c3', 'c4'] # FAKED
+    cloud_legit    = []
+    #cloud_legit    = ['c1', 'c2', 'c3', 'c4'] # FAKED
 
-    # for c in cloud_set:
-    #     if _all_products_on_cloud(c, rep_so, prod_list):
-    #          cloud_legit.append("connector/href='%s'" % c)
-
+    for c in cloud_set:
+        if _all_products_on_cloud(c, rep_so, prod_list):
+             cloud_legit.append(c)
+    _check_str_list(cloud_legit)
     return(cloud_legit)
 
 
@@ -284,29 +296,31 @@ def _schema_validation(jsonData):
 
     return True
 
+
+def populate_db( index, type, id=None):
+      request = elastic_host + index + type + id
+      rep = res.indices.create(request, ignore=400)
+
+      return rep
+
+
 def create_BDB(clouds):
     index='/sar/'
     type='/offer-cloud/'
+    req_index = requests.get(elastic_host + index)
 
-    req_index = request.get(elastic_host + index)
+    if not req_index:
+        populate_db( index, type)
 
-    deploy_id = []
     for c in clouds:
-        req_id    = request.get(elastic_host + index + type + id)
-        if not req_index:
-            deploy_id = (c, nsm.create_BDB(elastic_host, c, type index))
-        elif not req_id:
-            deploy_id = (c, nsm.create_BDB(elastic_host, c, type))
-
-        watch_execution_time(deploy_id, 9999)
-        print c + "benchmark done."
-
-    return True
+        rep = populate_db( index, type, c)
+        print rep
 
 def check_BDB_cloud(clouds):
     valid_cloud = []
+
     for c in clouds:
-        rep = get_elastic(elastic_host + doc_type + '/%s/' % c)
+        rep = _get_elastic(elastic_host + doc_type + '/%s/' % c)
         if rep.json()['found']:
             valid_cloud.append(c)
 
@@ -316,7 +330,7 @@ def check_BDB_cloud(clouds):
     return valid_cloud
 
 
-def get_elastic(index=None):
+def _get_elastic(index=None):
     return request.get(elastic_host + index)
 
 def _check_BDB_state():
@@ -324,7 +338,7 @@ def _check_BDB_state():
         raise ValueError("Benchmark DB down!")
     return True
 
-def check_BDB_index(index):
+def _check_BDB_index(index):
     _check_BDB_state()
     rep_index = get_elastic(index)
     if (not rep_index) or (len(rep_index.json()) < 1):
@@ -339,24 +353,87 @@ def _request_validation(request):
         raise ValueError("Not a POST request")
     return True
 
+
+def _components_service_offers(cloud, specs):
+    cloud = [("connector/href='%s'" % cloud)]
+    serviceOffers = { 'mapper': la.request_vm(specs['mapper'], cloud),
+                      'reducer': la.request_vm(specs['reducer'], cloud) }
+    return serviceOffers
+
+def deploy_run(data_loc, product, specs_vm, time):
+
+    for c in data_loc:
+        serviceOffers = _components_service_offers(c, specs_vm)
+        mapper_so =  serviceOffers['mapper']['serviceOffers']
+        reducer_so =  serviceOffers['reducer']['serviceOffers']
+        rep = ""
+        if mapper_so and reducer_so:
+            print mapper_so[0]['id']
+            print reducer_so[0]['id']
+            deploy_id = api.deploy('EO_Sentinel_1/procSAR',
+                    cloud={'mapper': c, 'reducer':c},
+                    parameters={'mapper' : {'service-offer': \
+                                 mapper_so[0]['id'],
+                                 'product-list':product},
+                                 'reducer': {'service-offer': \
+                                 reducer_so[0]['id']}},
+                    tags='EOproc', keep_running='never')
+
+            daemon_watcher = Thread(target = wait_product, args = (deploy_id, c, time))
+            daemon_watcher.setDaemon(True)
+            daemon_watcher.start()
+            rep += rep
+        else:
+            print("No corresponding instances type found on connector %s" % c)
+    return rep
+
 @app.route('/SLA_TEST', methods=['POST'])
 def sla_test():
     print request.get_json()
     return "check"
 
+''' initialization from the system admin :
 
+    : Inputs specs and products
+
+    : Verify if the DB is on
+    : Find the connector to cloud where the
+    data is localized
+
+    : Run the benchmark
+    : Populate the DB
+
+    input = { product: "",
+              specs_vm: {'mapper': la.request_vm(specs['mapper'], cloud),
+                      'reducer': a.request_vm(specs['reducer'], cloud)}
+
+
+'''
 @app.route('/SLA_INIT', methods=['POST'])
 def sla_init():
-   cloud = request.data
+   data = request.get_json()
+   product = data['product']
+   specs_vm   = _format_specs(data['specs_vm'])
+   print specs_vm
+
    try:
-       _check_DB_state()
-       create_BDB
-       msg = "Cloud %s currently benchmarked."
+    #    _check_DB_state()
+       data_loc   = find_data_loc(product)
+       print data_loc
+       if not data_loc :
+           raise ValueError("The data has not been found in any connector \
+                             associated with the Nuvla account")
+       print "Data located in: %s" % data_loc
+       #create_BDB(data_loc)
+       benchmarks = deploy_run(data_loc, product, specs_vm, 9999)
+       msg = "Cloud %s currently benchmarked." % benchmarks
        status = "201"
+
    except ValueError as err:
        msg = "Value error: {0} ".format(err)
        status = "404"
        print("Value error: {0} ".format(err))
+
    resp = Response(msg, status=status, mimetype='application/json')
    resp.headers['Link'] = 'http://sixsq.eoproc.com'
    return resp
@@ -367,20 +444,19 @@ def sla_cli():
 
     try:
         _check_BDB_index('sar')
-
         _request_validation(request)
         data = request.get_json()
         _sla = data['SLA']
         pp(_sla)
-
-        prod_list  =  _sla['product_list']
+        product_list  =  _sla['product_list']
         data_loc   = find_data_loc(prod_list)
         print "Data located in: %s" % data_loc
 
-        data_loc   = _check_BDB_cloud(data_loc)
+        data_loc   = check_BDB_cloud(data_loc)
 
         msg    = ""
         status = ""
+
         if data_loc:
             msg    = "SLA accepted! "
             status = "201"
@@ -393,17 +469,8 @@ def sla_cli():
             print so_id
             print so_conn
 
-            deploy_id = api.deploy('EO_Sentinel_1/procSAR',
-                        cloud={'mapper': so_id, 'reducer':'eo-cesnet-cz1'},
-                        parameters={'mapper' : {'service-offer': \
-                                     so_conn, 'product-list':prod_list},
-                                    'reducer': {'service-offer': \
-                                    'service-offer/5a97bbd7-6959-4259-9b2c-30fefdb08322'}},
-                        tags='EOproc', keep_running='never')
+            deploy_run(data_loc, product_list, specs_vm, time)
 
-            daemon_watcher = Thread(target = wait_product, args = (deploy_id, so_id, time))
-            daemon_watcher.setDaemon(True)
-            daemon_watcher.start()
         else:
             msg = "Data not found in clouds!"
             status = 412

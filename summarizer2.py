@@ -138,24 +138,6 @@ def query_run(duiid, cloud):
 
     return res.search(index='_all', body=query, size=300)
 
-    run = {'cloud': cloud,
-                   'time_records': {'mapper' :
-                                      { 'provisioning' : '',
-                                        'install': '',
-                                        'deployment': '',
-                                        'processing':' ',
-                                        'download': ''},
-                                    'reducer' :
-                                        { 'provisioning' : '',
-                                          'install': '',
-                                          'deployment': '',
-                                          'processing':' ',
-                                          'upload': ''},
-                                    'total':''}
-              'products'    : [[]],
-              'components'   : {'mapper':serviceOffers,'reducer':serviceOffers}
-           }
-
 
 
 def create_index(duiid, cloud, time_records, products, serviceOffers):

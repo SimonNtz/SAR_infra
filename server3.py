@@ -6,14 +6,13 @@ from slipstream.api import Api
 from datetime import datetime
 from threading import Thread
 import lib_access as la
-import no_sla_mode as nsm
 import summarizer_final as sumarizer
 import numpy as np
 # -*- coding: utf-8 -*-
 app = Flask(__name__)
 api = Api()
 elastic_host = 'http://localhost:9200'
-doc_type = '/foo3'
+doc_type = '/foo3/'
 
 @app.route('/')
 def form():
@@ -149,6 +148,32 @@ def DMM(clouds, time):
         - with the best specs
 
     """
+
+    {u'_id': u'ec2-eu-west',
+ u'_index': u'sar7',
+ u'_source': {u'1': {u'components': {u'mapper': [8, 30720, 100],
+                                     u'reducer': [8, 30720, 100]},
+                     u'execution_time': 950,
+                     u'price': u'1.0123',
+                     u'products': [[u'S1A_IW_GRDH_1SDV_20151226T182813_20151226T182838_009217_00D48F_5D5F.SAFE',
+                                    u'1.6G']],
+                     u'time_records': {u'mapper': [{u'deployment': 526,
+                                                    u'download': 334,
+                                                    u'install': 333,
+                                                    u'intra-total': 859,
+                                                    u'processing': 155,
+                                                    u'provisioning': 267}],
+                                       u'reducer': {u'deployment': 52.6,
+                                                    u'install': 33.3,
+                                                    u'intra-total': 85.9,
+                                                    u'processing': 15.5,
+                                                    u'provisioning': 26.7,
+                                                    u'upload': 10},
+                                       u'total': 950},
+                     u'timestamp': u'2017-08-04 13:22:07'}},
+ u'_type': u'foo3',
+ u'_version': 1,
+ u'found': True}
     BDB = get_BDB('case1')
 
     BDB_temp = apply_filter_BDB(BDB, clouds, 500 )
@@ -317,7 +342,7 @@ def create_BDB(clouds):
 def _check_BDB_cloud(index, clouds):
     valid_cloud = []
     for c in _check_str_list(clouds):
-        rep = _get_elastic(index, doc_type + '%s/' % c)
+        rep = _get_elastic(index + doc_type + '%s/' % c)
         if rep.json()['found']:
             valid_cloud.append(c)
 
@@ -328,7 +353,7 @@ def _check_BDB_cloud(index, clouds):
 
 
 def _get_elastic(index=""):
-    return request.get(elastic_host + index)
+    return requests.get(elastic_host + index)
 
 def _check_BDB_state():
     if not _get_elastic():

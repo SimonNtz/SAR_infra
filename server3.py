@@ -13,7 +13,7 @@ import numpy as np
 app = Flask(__name__)
 api = Api()
 elastic_host = 'http://localhost:9200'
-doc_type = '/foo3/'
+doc_type = '/foo3'
 
 @app.route('/')
 def form():
@@ -119,10 +119,8 @@ def check_vm_specs(vm_ids):
 
 
 def compare_vm_specs(vm_specs):
-
     dtype = 'i8, i8, |S64 , i8'
     vm_specs = np.array(vm_specs, dtype=dtype)
-
 
     return(vm_specs[0][2])
 
@@ -316,11 +314,10 @@ def create_BDB(clouds):
         rep = populate_db( index, type, c)
         print rep
 
-def check_BDB_cloud(clouds):
+def _check_BDB_cloud(index, clouds):
     valid_cloud = []
-
-    for c in clouds:
-        rep = _get_elastic(elastic_host + doc_type + '/%s/' % c)
+    for c in _check_str_list(clouds):
+        rep = _get_elastic(index, doc_type + '%s/' % c)
         if rep.json()['found']:
             valid_cloud.append(c)
 
@@ -330,17 +327,17 @@ def check_BDB_cloud(clouds):
     return valid_cloud
 
 
-def _get_elastic(index=None):
+def _get_elastic(index=""):
     return request.get(elastic_host + index)
 
 def _check_BDB_state():
-    if not get_elastic():
+    if not _get_elastic():
         raise ValueError("Benchmark DB down!")
     return True
 
 def _check_BDB_index(index):
     _check_BDB_state()
-    rep_index = get_elastic(index)
+    rep_index = _get_elastic(index)
     if (not rep_index) or (len(rep_index.json()) < 1):
         raise ValueError("Empty Benchmark DB please use POST on `SLA_INIT` \
                                         to initialize the system")
@@ -417,7 +414,7 @@ def sla_init():
    print specs_vm
 
    try:
-    #    _check_DB_state()
+    #    _check_BDB_state()
        data_loc   = find_data_loc(product)
        print data_loc
        if not data_loc :
@@ -443,7 +440,7 @@ def sla_init():
 def sla_cli():
 
     try:
-        _check_BDB_index('sar')
+        #_check_BDB_index('sar')
         _request_validation(request)
         data = request.get_json()
         _sla = data['SLA']
@@ -452,7 +449,7 @@ def sla_cli():
         data_loc   = find_data_loc(prod_list)
         print "Data located in: %s" % data_loc
 
-        data_loc   = check_BDB_cloud(data_loc)
+        #data_loc   = _check_BDB_cloud(index, data_loc)
 
         msg    = ""
         status = ""
@@ -461,13 +458,13 @@ def sla_cli():
             msg    = "SLA accepted! "
             status = "201"
             time = 500
-            best_so = DMM(data_loc, time)
-            print best_so
+            #best_so = DMM(data_loc, time)
+            #print best_so
             #best_so = la.request_vm(specs_vm, data_loc)['serviceOffers'][0]
-            so_id   = 'eo-cesnet-cz1' # best_obj['connector']
-            so_conn = 'service-offer/deb7eb81-0881-4dff-9407-6230687f8a42' # best_obj['id']
-            print so_id
-            print so_conn
+            #so_id   = 'eo-cesnet-cz1' # best_obj['connector']
+            #so_conn = 'service-offer/deb7eb81-0881-4dff-9407-6230687f8a42' # best_obj['id']
+            #print so_id
+            #print so_conn
 
             deploy_run(data_loc, product_list, specs_vm, time)
 

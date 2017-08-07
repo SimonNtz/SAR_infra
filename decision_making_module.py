@@ -61,15 +61,12 @@ def dmm(cloud, time, offer):
       specs = srv3._format_specs(rep['hits'][0]['_source'][offer]['components'])
       time  = rep['hits'][0]['_source'][offer]['execution_time']
       serviceOffers = srv3._components_service_offers(c, specs)
-      mapper_so =  serviceOffers['mapper']['serviceOffers'][0]['id']
-      reducer_so =  serviceOffers['reducer']['serviceOffers'][0]['id']
+      mapper_so =  serviceOffers['mapper']
+      reducer_so =  serviceOffers['reducer']
       cost = get_price([mapper_so, reducer_so], time)
       print c
       ranking.append([c, mapper_so, reducer_so, cost ])
-    print ranking
-    ranking.sort(key=lambda x:x[2])
-#np.sort(np.array(ranking, dtype=dtype).view('|S64 , |S64, i8'), order=['f2'], axis=0)
-
+    return sorted(ranking, key=lambda x:x[2])
 
 if __name__ == '__main__':
     cloud=['ec2-eu-west']

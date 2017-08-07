@@ -127,7 +127,7 @@ def compare_vm_specs(vm_specs):
 
 def choose_vm(vm_set):
     best_price = vm_set[0][1]
-    best_vms   = [k for k,v in vm_set if v == best_price]
+    best_vms   = [k for k, v in vm_set if v == best_price]
 
     if len(best_vms) > 1:
         my_vm = check_vm_specs(best_vms)
@@ -311,6 +311,7 @@ def create_BDB(clouds, specs_vm):
     for c in clouds:
         rep = populate_db( index, type, c)
         serviceOffers = _components_service_offers(c, specs_vm)
+
         benchmarks = deploy_run(c, product, serviceOffers, 9999)
         print rep
 
@@ -353,33 +354,36 @@ def _request_validation(request):
 
 def _components_service_offers(cloud, specs):
     cloud = [("connector/href='%s'" % cloud)]
-    serviceOffers = { 'mapper': la.request_vm(specs['mapper'], cloud),
-                      'reducer': la.request_vm(specs['reducer'], cloud) }
+    serviceOffers = {'mapper':
+                      la.request_vm(specs['mapper'],
+                                        cloud)['serviceOffers'][0]['id'],
+                     'reducer':
+                      la.request_vm(specs['reducer'],
+                                        cloud)['serviceOffers'][0]['id']}
     return serviceOffers
 
-def deploy_run(data_loc, product, serviceOffers, time ):
-    mapper_so =  serviceOffers['mapper']['serviceOffers']
-    reducer_so =  serviceOffers['reducer']['serviceOffers']
+def deploy_run(cloud, product, serviceOffers, time ):
+    mapper_so =  serviceOffers['mapper']
+    reducer_so =  serviceOffers['reducer']
     rep = ""
     if mapper_so and reducer_so:
-        print mapper_so[0]['id']
-        print reducer_so[0]['id']
+        print "DEPLOY:"  + mapper_so + " " + reducer_so + " in" + cloud
         deploy_id = api.deploy('EO_Sentinel_1/procSAR',
-                cloud={'mapper': c, 'reducer':c},
+                cloud={'mapper': cloud, 'reducer':cloud},
                 parameters={'mapper' : {'service-offer': \
-                             mapper_so[0]['id'],
+                             mapper_so,
                              'product-list':product},
                              'reducer': {'service-offer': \
-                             reducer_so[0]['id']}},
+                             reducer_so}},
                 tags='EOproc', keep_running='never')
 
-        daemon_watcher = Thread(target = wait_product, args = (deploy_id, c, time))
+        daemon_watcher = Thread(target = wait_product, args = (deploy_id, cloud, time))
         daemon_watcher.setDaemon(True)
         daemon_watcher.start()
         rep += rep
     else:
         print("No corresponding instances type found on connector %s" % c)
-return rep
+    return rep
 
 @app.route('/SLA_TEST', methods=['POST'])
 def sla_test():
@@ -458,8 +462,8 @@ def sla_cli():
             time = 500
             ranking = dmm.dmm(data_loc, time, offer)
             pp(ranking)
-            serviceOffers = { 'mapper': ranking[1],
-                              'reducer': ranking[2]}
+            serviceOffers = { 'mapper': ranking[0][1],
+                              'reducer': ranking[0][2]}
             deploy_run(data_loc, product_list, serviceOffers, time) # offer
 
         else:
@@ -480,5 +484,5 @@ if __name__ == '__main__':
     api.login('simon1992', '12mc0v2ee64o9')
     app.run(
         host="0.0.0.0",
-        port=int("80")
+        port=int("81")
 )

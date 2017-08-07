@@ -363,8 +363,11 @@ def _components_service_offers(cloud, specs):
     return serviceOffers
 
 def deploy_run(cloud, product, serviceOffers, time ):
-    mapper_so =  serviceOffers['mapper']
-    reducer_so =  serviceOffers['reducer']
+    #mapper_so =  serviceOffers['mapper']
+    #reducer_so =  serviceOffers['reducer']
+    mapper_so = "service-offer/cc382a2d-20f4-499d-82c2-046873e0cd05"
+    reducer_so = "service-offer/cc382a2d-20f4-499d-82c2-046873e0cd05"
+    cloud = "eo-cesnet-cz1"
     rep = ""
     if mapper_so and reducer_so:
         print "DEPLOY:"  + mapper_so + " " + reducer_so + " in" + cloud

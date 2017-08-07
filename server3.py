@@ -300,7 +300,7 @@ def populate_db( index, type, id=None):
       return rep
 
 
-def create_BDB(clouds):
+def create_BDB(clouds, specs_vm):
     index='/sar/'
     type='/offer-cloud/'
     req_index = requests.get(elastic_host + index)
@@ -310,6 +310,8 @@ def create_BDB(clouds):
 
     for c in clouds:
         rep = populate_db( index, type, c)
+        serviceOffers = _components_service_offers(c, specs_vm)
+        benchmarks = deploy_run(c, product, serviceOffers, 9999)
         print rep
 
 def _check_BDB_cloud(index, clouds):
@@ -355,32 +357,29 @@ def _components_service_offers(cloud, specs):
                       'reducer': la.request_vm(specs['reducer'], cloud) }
     return serviceOffers
 
-def deploy_run(data_loc, product, specs_vm, time):
+def deploy_run(data_loc, product, serviceOffers, time ):
+    mapper_so =  serviceOffers['mapper']['serviceOffers']
+    reducer_so =  serviceOffers['reducer']['serviceOffers']
+    rep = ""
+    if mapper_so and reducer_so:
+        print mapper_so[0]['id']
+        print reducer_so[0]['id']
+        deploy_id = api.deploy('EO_Sentinel_1/procSAR',
+                cloud={'mapper': c, 'reducer':c},
+                parameters={'mapper' : {'service-offer': \
+                             mapper_so[0]['id'],
+                             'product-list':product},
+                             'reducer': {'service-offer': \
+                             reducer_so[0]['id']}},
+                tags='EOproc', keep_running='never')
 
-    for c in data_loc:
-        serviceOffers = _components_service_offers(c, specs_vm)
-        mapper_so =  serviceOffers['mapper']['serviceOffers']
-        reducer_so =  serviceOffers['reducer']['serviceOffers']
-        rep = ""
-        if mapper_so and reducer_so:
-            print mapper_so[0]['id']
-            print reducer_so[0]['id']
-            deploy_id = api.deploy('EO_Sentinel_1/procSAR',
-                    cloud={'mapper': c, 'reducer':c},
-                    parameters={'mapper' : {'service-offer': \
-                                 mapper_so[0]['id'],
-                                 'product-list':product},
-                                 'reducer': {'service-offer': \
-                                 reducer_so[0]['id']}},
-                    tags='EOproc', keep_running='never')
-
-            daemon_watcher = Thread(target = wait_product, args = (deploy_id, c, time))
-            daemon_watcher.setDaemon(True)
-            daemon_watcher.start()
-            rep += rep
-        else:
-            print("No corresponding instances type found on connector %s" % c)
-    return rep
+        daemon_watcher = Thread(target = wait_product, args = (deploy_id, c, time))
+        daemon_watcher.setDaemon(True)
+        daemon_watcher.start()
+        rep += rep
+    else:
+        print("No corresponding instances type found on connector %s" % c)
+return rep
 
 @app.route('/SLA_TEST', methods=['POST'])
 def sla_test():
@@ -412,15 +411,14 @@ def sla_init():
    print specs_vm
 
    try:
-    #    _check_BDB_state()
+       _check_BDB_state()
        data_loc   = find_data_loc(product)
        print data_loc
        if not data_loc :
            raise ValueError("The data has not been found in any connector \
                              associated with the Nuvla account")
        print "Data located in: %s" % data_loc
-       #create_BDB(data_loc)
-       benchmarks = deploy_run(data_loc, product, specs_vm, 9999)
+       create_BDB(data_loc, specs_vm)
        msg = "Cloud %s currently benchmarked." % benchmarks
        status = "201"
 
@@ -436,19 +434,21 @@ def sla_init():
 
 @app.route('/SLA_CLI', methods=['POST'])
 def sla_cli():
+    index = '/sar7'
 
     try:
-        #_check_BDB_index('sar')
+        _check_BDB_index(index)
         _request_validation(request)
         data = request.get_json()
-        _sla = data['SLA']
-        pp(_sla)
-        product_list  =  _sla['product_list']
-        data_loc   = find_data_loc(prod_list)
+        sla = data['SLA']
+        pp(sla)
+        product_list  =  sla['product_list']
+        time  = sla['requirements'][0]
+        offer = sla['requirements'][1]
+        data_loc   = find_data_loc(product_list)
         print "Data located in: %s" % data_loc
 
-        #data_loc   = _check_BDB_cloud(index, data_loc)
-
+        data_loc   = _check_BDB_cloud(index, data_loc)
         msg    = ""
         status = ""
 
@@ -456,18 +456,11 @@ def sla_cli():
             msg    = "SLA accepted! "
             status = "201"
             time = 500
-            ranking = dmm.dmm(clouds, time, offer)
+            ranking = dmm.dmm(data_loc, time, offer)
             pp(ranking)
-            return(ranking)
-            #best_so = DMM(data_loc, time)
-            #print best_so
-            #best_so = la.request_vm(specs_vm, data_loc)['serviceOffers'][0]
-            #so_id   = 'eo-cesnet-cz1' # best_obj['connector']
-            #so_conn = 'service-offer/deb7eb81-0881-4dff-9407-6230687f8a42' # best_obj['id']
-            #print so_id
-            #print so_conn
-
-            deploy_run(data_loc, product_list, specs_vm, time)
+            serviceOffers = { 'mapper': ranking[1],
+                              'reducer': ranking[2]}
+            deploy_run(data_loc, product_list, serviceOffers, time) # offer
 
         else:
             msg = "Data not found in clouds!"

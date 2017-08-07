@@ -65,7 +65,7 @@ def dmm(cloud, time, offer):
       reducer_so =  serviceOffers['reducer']['serviceOffers'][0]['id']
       cost = get_price([mapper_so, reducer_so], time)
       print c
-      ranking.append([c, mapper_so, cost ])
+      ranking.append([c, mapper_so, reducer_so, cost ])
     print ranking
     ranking.sort(key=lambda x:x[2])
 #np.sort(np.array(ranking, dtype=dtype).view('|S64 , |S64, i8'), order=['f2'], axis=0)
